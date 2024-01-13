@@ -1,22 +1,45 @@
 import pymongo
 import datetime
+import requests
+
+
+
+def check_text_for_hatespeach(text : str, cutoff = 0.24):
+  # cutoff - 0.1 recall superiority (важнее найти то, что действительно хейтспич, ложнопозитивные человекомодероторы отсеят)
+  # cutoff - 0.24 ballanced (наилучшая f1)
+  # cutoff - 0.5 precision superiority (важнее чтобы не было ложнопозитивных, можно не распознать все ради этого, подходит для безчеловекооператорного режима работы)
+
+  responce = requests.get('http://localhost:8085/check', data={'sentence':text})
+  if responce.status_code != 200:
+    print(f"unable to check for hatespeach, request error {responce.status_code}")
+    return None
+  else:
+    result = [pair for pair in responce.json()['probs'] if pair[1] > cutoff]
+    return result
+    
 
 class database_interface():
 
-  def __init__(self, client = pymongo.MongoClient("mongodb://localhost:27017/")):
+  def __init__(self, client = pymongo.MongoClient("mongodb://localhost:27018/")):
     self.client = client
     self.database = self.client["blog_app_database"]
 
   # ------------------------- методы для работы с постами -------------------------------------------
   def compose_and_post(self, auth_id : int, content : str):
-    # здесь будет проверка на корректность контента в посте
-    self.database["posts"].insert_one(
-      {"author_id" : auth_id,
-      "time_of_creation" : datetime.datetime.now(tz=datetime.timezone.utc),
-      "content" : content,
-      "comments" : []
-      }
-    )
+    # здесь проверка на корректность контента в посте
+    check_result = []#check_text_for_hatespeach(content, cutoff = 0.3)
+    if check_result != []:
+      print(f"unable to post due to hatespeach detected ({check_result})")
+      return 'not ok'
+    else:
+      self.database["posts"].insert_one(
+        {"author_id" : auth_id,
+        "time_of_creation" : datetime.datetime.now(tz=datetime.timezone.utc),
+        "content" : content,
+        "comments" : []
+        }
+      )
+      return 'ok'
 
   def find_posts(self, auth_id = None, time_span_from = datetime.datetime(2000, 1, 1), time_span_to = datetime.datetime.now(tz=datetime.timezone.utc)):
     # по умолчанию возвращает все посты
@@ -32,15 +55,19 @@ class database_interface():
     return discovered_posts
 
   def add_comment_to_post(self, post_id, comment_text : str, comment_author : int):
-    # модерация комментариев будет тут
-
-    comment = {"comment_text" : comment_text,
-              "comment_author" : comment_author,
-              "comment_date" : datetime.datetime.now(tz=datetime.timezone.utc)}
-    
-    comment_list = self.database["posts"].find({'_id' : post_id})[0]["comments"] # берем список коммментарием
-    self.database["posts"].update_one({'_id' : post_id}, {"$set" : {"comments" : comment_list + [comment]}}) # перезаписываем его обновленным списком
-
+    # модерация комментариев тут
+    check_result = []#check_text_for_hatespeach(comment_text, cutoff = 0.3)
+    if check_result != []:
+      print(f"unable to post due to hatespeach detected {check_result}")
+      return 'not ok'
+    else:
+      comment = {"comment_text" : comment_text,
+                "comment_author" : comment_author,
+                "comment_date" : datetime.datetime.now(tz=datetime.timezone.utc)}
+      
+      comment_list = self.database["posts"].find({'_id' : post_id})[0]["comments"] # берем список коммментарием
+      self.database["posts"].update_one({'_id' : post_id}, {"$set" : {"comments" : comment_list + [comment]}}) # перезаписываем его обновленным списком
+      return 'ok'
   # ------------------------- методы для работы с авторами -------------------------------------------
 
   def create_account(self, u_name, password_hash):

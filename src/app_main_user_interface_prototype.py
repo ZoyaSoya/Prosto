@@ -1,3 +1,4 @@
+from app_main_database_interface_prototype import check_text_for_hatespeach
 from app_main_database_interface_prototype import database_interface
 
 database = database_interface()
@@ -153,9 +154,11 @@ class user_interface:
 # ui.post("this is a post")
 #ui.load_my_posts()
 #ui.comment(ui.posts[0], "wow, i can leave comments here!")
+#print(check_text_for_hatespeach('Ты че сучара?!'))
 
-ui = user_interface("admin", 0000)
-ui.load_my_posts()
-ui.subscribe("base_accont")
-ui.load_posts_form_subscriptions()
-ui.clear_subs()
+# ui = user_interface("admin", 0000)
+# ui.load_my_posts()
+# ui.post("Привет!")
+# ui.subscribe("base_accont")
+# ui.load_posts_form_subscriptions()
+# ui.clear_subs()
